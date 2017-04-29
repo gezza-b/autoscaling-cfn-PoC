@@ -1,0 +1,128 @@
+{
+ "Resources" : {
+   "WebServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+         "AvailabilityZones" :  ["ap-southeast-2a"] ,
+         "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+         "MinSize" : "1",
+         "MaxSize" : "2",
+         "LoadBalancerNames" : [ { "Ref" : "ElasticLoadBalancer" } ],
+         "MetricsCollection": [
+            {
+               "Granularity": "1Minute",
+               "Metrics": [
+                  "GroupMinSize",
+                  "GroupMaxSize"
+               ]
+            }
+         ]
+      }
+   },
+
+   "LaunchConfig" : {
+   "Type" : "AWS::AutoScaling::LaunchConfiguration",
+   "Properties" : {
+      "KeyName" : "ec2_demo",
+      "ImageId" : "ami-1c47407f",
+      "SecurityGroups" : [ { "Ref" : "SshSecurityGroup" }, { "Ref" : "WebSecurityGroup" } ],
+      "InstanceType" : "t2.micro"
+   }
+ },
+
+ "ElasticLoadBalancer": {
+   "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+   "Properties": {
+     "AvailabilityZones": [ "ap-southeast-2a" ] ,
+     "Listeners": [{
+       "LoadBalancerPort": "80",
+       "InstancePort": "80",
+       "Protocol": "HTTP"
+     }],
+     "HealthCheck": {
+       "Target": "HTTP:80/",
+       "HealthyThreshold": "2",
+       "UnhealthyThreshold": "2",
+       "Interval": "20",
+       "Timeout": "5"
+     },
+     "AccessLoggingPolicy": {
+       "S3BucketName": {
+           "Ref": "S3LoggingBucket"
+       },
+       "S3BucketPrefix": "Logs",
+       "Enabled": "true",
+       "EmitInterval" : "60"
+     }
+   },
+     "DependsOn": "S3LoggingBucketPolicy"
+   },
+
+
+    "S3LoggingBucket": {
+       "Type": "AWS::S3::Bucket"
+     },
+
+     "S3LoggingBucketPolicy": {
+       "Type": "AWS::S3::BucketPolicy",
+       "Properties": {
+         "Bucket": {
+           "Ref": "S3LoggingBucket"
+         },
+         "PolicyDocument": {
+           "Version": "2012-10-17",
+           "Statement": [ {
+             "Sid": "ELBAccessLogs20130930",
+             "Effect": "Allow",
+             "Resource": {
+               "Fn::Join": [
+                 "",
+                 [
+                   "arn:aws:s3:::",
+                   { "Ref": "S3LoggingBucket" },
+                   "/",
+                   "Logs",
+                   "/AWSLogs/",
+                   { "Ref": "AWS::AccountId" },
+                   "/*"
+                 ]
+               ]
+             },
+             "Principal": "*" ,
+             "Action": [
+               "s3:PutObject"
+             ]
+           } ]
+         }
+       }
+     },
+
+
+    "SshSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access via port 22",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "WebSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via port 80",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    }
+  },
+
+
+}
